@@ -14,6 +14,9 @@ import dma.xch.hmi.api.HmiClient;
 import dma.xch.hmi.api.callback.UartDataCallBack;
 import dma.xch.hmi.api.callback.UseCameraCallBack;
 
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+
 public class MainActivity extends AppCompatActivity implements UartDataCallBack,UseCameraCallBack {
 
     private static final String TAG=MainActivity.class.getName();
@@ -24,6 +27,7 @@ public class MainActivity extends AppCompatActivity implements UartDataCallBack,
     private Handler mHandler;
     private Bitmap bitmap;
     private int portTag;
+    private int port=2;
 
 
     @Override
@@ -43,28 +47,8 @@ public class MainActivity extends AppCompatActivity implements UartDataCallBack,
         mHandler = new Handler();
         hmiClient=HmiClient.getInstance();
         hmiClient.initSDK();
-        boolean isOpen=hmiClient.openUart(portTag,this,2,HmiClient.BAUD_RATE_115200);
+        boolean isOpen=hmiClient.openUart(portTag,this,port,HmiClient.BAUD_RATE_115200);
         int count=hmiClient.getCameraCount();
-        /*if(count>0)
-        {
-            isInitOk = hmiClient.initUsbCamera(this, count);
-            if(!isInitOk)
-            {
-                Toast.makeText(MainActivity.this,"open usb camera  fail!!!", Toast.LENGTH_LONG).show();
-            }
-        }
-        else
-        {
-            Toast.makeText(MainActivity.this,"not usb camera device!!!", Toast.LENGTH_LONG).show();
-            //count=mClient.addCamDev(0);
-            //isInitOk = mClient.initUsbCamera(this, count);
-            //if(!isInitOk)
-            //{
-            //	Toast.makeText(MainActivity.this,"open usb camera  fail!!!", Toast.LENGTH_LONG).show();
-            //}
-
-
-        }*/
 
     }
     private void initView(){
@@ -78,27 +62,42 @@ public class MainActivity extends AppCompatActivity implements UartDataCallBack,
         window.setAttributes(params);
     }
 
-    private Bitmap update(Bitmap bitmap) {
-        int height=bitmap.getHeight();
-        int width=bitmap.getWidth();
-        for(int i=0;i<100;i++){
-            for (int j=0;j<100-i;j++){
-                bitmap.setPixel(j,i,Color.argb(0, 0, 0, 0));
-            }
-            for (int j=100-i;j>0;j--){
-                bitmap.setPixel(width-j,i,Color.argb(0, 0, 0, 0));
-            }
-        }
-        for(int i=height-1;i>height-101;i--){
-            for (int j=0;j<100+i-height;j++){
-                bitmap.setPixel(j,i,Color.argb(0, 0, 0, 0));
-            }
+    private ColorMatrix rotateMatrix;
+    private ColorMatrix saturationMatrix;
+    private ColorMatrix scaleMatrix;
+    private ColorMatrix colorMatrix;
+    //亮度 0-360 超出此范围，呈周期性变化
+    float rotate=360f;
+    //饱和度 0 为灰度图，纯黑白， 1 为与原图一样，但是取值可以更大
+    float saturation=1f;
+    //色调
+    float scale=2f;
 
-            for (int j=101+i-height;j>0;j--){
-                bitmap.setPixel(width-j,i,Color.argb(0, 0, 0, 0));
-            }
-        }
-        return bitmap;
+    private Bitmap update(Bitmap bitmap,float rotate,float saturation,float scale) {
+        Bitmap bmp = Bitmap.createBitmap(bitmap.getWidth(),bitmap.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        Paint paint = new Paint();
+        Log.i(TAG, "update: "+rotate+""+saturation+""+saturation);
+        rotateMatrix = new ColorMatrix();
+        rotateMatrix.setRotate(0,rotate);
+        rotateMatrix.setRotate(1,rotate);
+        rotateMatrix.setRotate(2,rotate);
+
+        saturationMatrix = new ColorMatrix();
+        saturationMatrix.setSaturation(saturation);
+
+        scaleMatrix = new ColorMatrix();
+        scaleMatrix.setScale(scale,scale,scale,1);
+
+        colorMatrix=new ColorMatrix();
+        colorMatrix.postConcat(rotateMatrix);
+        colorMatrix.postConcat(saturationMatrix);
+        colorMatrix.postConcat(scaleMatrix);
+
+        paint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+        canvas.drawBitmap(bitmap,0,0,paint);
+
+        return bmp;
     }
     @Override
     public void preview(Bitmap bitmap) {
@@ -113,6 +112,7 @@ public class MainActivity extends AppCompatActivity implements UartDataCallBack,
         {
             // TODO Auto-generated method stub
             imageView.setImageBitmap(bitmap);
+//            imageView.setImageBitmap(update(bitmap,rotate,saturation,scale));
         }
     };
 
@@ -132,17 +132,9 @@ public class MainActivity extends AppCompatActivity implements UartDataCallBack,
                         if(!isInitOk)
                         {
                             Log.i(TAG, "UartData open usb camera  fail!!!");
-//                            Toast.makeText(MainActivity.this,"open usb camera  fail!!!", Toast.LENGTH_LONG).show();
                         }
                     }else{
                         Log.i(TAG, "UartData not usb camera device!!!");
-//                        Toast.makeText(MainActivity.this,"not usb camera device!!!", Toast.LENGTH_LONG).show();
-                        //count=mClient.addCamDev(0);
-                        //isInitOk = mClient.initUsbCamera(this, count);
-                        //if(!isInitOk)
-                        //{
-                        //	Toast.makeText(MainActivity.this,"open usb camera  fail!!!", Toast.LENGTH_LONG).show();
-                        //}
                     }
                 }
             }else if(ComUtils.checkFinish(chars)){
